@@ -1,0 +1,103 @@
+﻿<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>M4 Log Visualizer</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark">M4</span>
+        <div>
+          <h1>Log Visualizer</h1>
+          <p id="logDir">Selecione ou arraste os logs Meta4</p>
+        </div>
+      </div>
+
+      <div class="file-loader" id="dropZone">
+        <label for="fileInput">Arquivos de log</label>
+        <input id="fileInput" type="file" accept=".txt,text/plain" multiple>
+        <p>Selecione ou arraste <strong>ldbinsp0_1.txt</strong> e <strong>ldbinsp0_2.txt</strong>.</p>
+      </div>
+
+      <div class="search-box">
+        <label for="searchInput">Procurar nos logs</label>
+        <input id="searchInput" type="search" placeholder="Objeto, SQL, valor retornado...">
+      </div>
+
+      <div class="filters">
+        <button class="filter active" data-file="all">Todos</button>
+        <button class="filter" data-file="ldbinsp0_1.txt">ldbinsp0_1</button>
+        <button class="filter" data-file="ldbinsp0_2.txt">ldbinsp0_2</button>
+      </div>
+
+      <div class="summary" id="summary"></div>
+      <nav class="entry-list" id="entryList" aria-label="SQLs encontrados"></nav>
+    </aside>
+
+    <main class="viewer">
+      <header class="toolbar">
+        <div>
+          <p class="eyebrow" id="selectedFile">Nenhum item selecionado</p>
+          <h2 id="selectedTitle">Selecione uma query</h2>
+        </div>
+        <div class="actions">
+          <button id="refreshButton" title="Recarregar logs">Atualizar</button>
+          <button id="copyButton" title="Copiar SQL Oracle">Copiar SQL</button>
+        </div>
+      </header>
+
+      <section class="details-grid">
+        <div>
+          <span>Objeto</span>
+          <strong id="metaObject">-</strong>
+        </div>
+        <div>
+          <span>Organizacao</span>
+          <strong id="organization">-</strong>
+        </div>
+        <div>
+          <span>Data</span>
+          <strong id="date">-</strong>
+        </div>
+        <div>
+          <span>Tempo</span>
+          <strong id="duration">-</strong>
+        </div>
+        <div>
+          <span>Linhas</span>
+          <strong id="rowCount">-</strong>
+        </div>
+      </section>
+
+      <section class="panel sql-panel">
+        <div class="panel-header">
+          <h3>SQL Oracle</h3>
+        </div>
+        <pre id="sqlOutput">Aguardando selecao...</pre>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <h3>Resultado retornado no log</h3>
+          <span id="tableHint"></span>
+        </div>
+        <div class="table-wrap">
+          <table id="resultTable"></table>
+        </div>
+      </section>
+
+      <section class="panel raw-panel">
+        <div class="panel-header">
+          <h3>Trecho original</h3>
+        </div>
+        <pre id="rawOutput"></pre>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
+

@@ -1,0 +1,17 @@
+{
+  "name": "m4-log-visualizer",
+  "version": "1.0.0",
+  "description": "Visualizador local de logs Meta4 com extracao de SQL e resultados.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [
+    "meta4",
+    "logs",
+    "sql",
+    "oracle"
+  ],
+  "author": "",
+  "license": "MIT"
+}

@@ -1,0 +1,124 @@
+﻿<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>M4 Log Visualizer</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark">M4</span>
+        <div>
+          <h1>Log Visualizer</h1>
+          <p id="logDir">Pasta padrao: C:\ProgramData\meta4\M4Temp\m4ldb</p>
+        </div>
+      </div>
+
+      <div class="file-loader" id="dropZone">
+        <label for="fileInput">Arquivos de log</label>
+        <input id="fileInput" type="file" accept=".txt,text/plain" multiple>
+        <p>Pasta padrao: <strong>C:\ProgramData\meta4\M4Temp\m4ldb</strong>.</p>
+      </div>
+
+      <div class="search-box">
+        <label for="searchInput">Procurar nos logs</label>
+        <input id="searchInput" type="search" placeholder="Objeto, SQL, valor retornado...">
+      </div>
+
+      <div class="filters">
+        <button class="filter active" data-file="all">Todos</button>
+        <button class="filter" data-file="ldbinsp0_1.txt">ldbinsp0_1</button>
+        <button class="filter" data-file="ldbinsp0_2.txt">ldbinsp0_2</button>
+        <button id="sortDescButton" class="icon-button sort-button active" type="button" title="Eventos mais recentes no topo" aria-label="Eventos mais recentes no topo"><span id="sortIcon" aria-hidden="true">↓</span></button>
+      </div>
+
+      
+
+      <label class="system-filter">
+        <input id="onlyRealStmt" type="checkbox">
+        <span>Mostrar somente SQLs fisicos.</span>
+      </label>
+
+      <div class="summary" id="summary"></div>
+      <nav class="entry-list" id="entryList" aria-label="SQLs encontrados"></nav>
+    </aside>
+
+    <main class="viewer">
+      <header class="toolbar">
+        <div>
+          <p class="eyebrow" id="selectedFile">Nenhum item selecionado</p>
+          <h2 id="selectedTitle">Selecione uma query</h2>
+        </div>
+        <div class="actions">
+          <button id="themeButton" class="icon-button theme-toggle" type="button" title="Alternar tema" aria-label="Alternar tema"><span id="themeIcon" class="theme-icon" aria-hidden="true">☀</span></button>
+          <button id="refreshButton" title="Recarregar logs">Atualizar</button>
+          <button id="copyButton" title="Copiar SQL Oracle">Copiar SQL</button>
+        </div>
+      </header>
+
+      <section class="details-grid">
+        <div>
+          <span>Objeto</span>
+          <strong id="metaObject">-</strong>
+        </div>
+        <div>
+          <span>Organizacao</span>
+          <strong id="organization">-</strong>
+        </div>
+        <div>
+          <span>Data</span>
+          <strong id="date">-</strong>
+        </div>
+        <div>
+          <span>Tempo</span>
+          <strong id="duration">-</strong>
+        </div>
+        <div>
+          <span>Linhas</span>
+          <strong id="rowCount">-</strong>
+        </div>
+      </section>
+
+      <section class="panel sql-panel">
+        <div class="panel-header">
+          <h3>SQL Oracle</h3>
+          <button id="formatSqlButton" class="panel-action" type="button" title="Formatar SQL">Formatar SQL</button>
+        </div>
+        <pre id="sqlOutput">Aguardando selecao...</pre>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <h3>Resultado retornado no log</h3>
+          <span id="tableHint"></span>
+        </div>
+        <div class="table-wrap">
+          <table id="resultTable"></table>
+        </div>
+      </section>
+
+      <section class="panel raw-panel">
+        <div class="panel-header">
+          <h3>Trecho original</h3>
+        </div>
+        <pre id="rawOutput"></pre>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
