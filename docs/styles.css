@@ -88,6 +88,21 @@ button:hover {
   border-bottom: 1px solid var(--line);
 }
 
+.brand-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.app-version {
+  font-size: 13px;
+  color: var(--muted);
+  background: var(--panel-soft);
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+}
+
 .brand-mark {
   width: 44px;
   height: 44px;
@@ -558,6 +573,17 @@ td {
     padding: 14px;
   }
 }
+
+/* Settings panel */
+.settings-panel.hidden { display: none; }
+.settings-panel .settings-content { padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+.settings-panel .add-row { display: flex; gap: 8px; }
+.settings-panel .add-row input { flex: 1; padding: 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--control); color: var(--text); }
+.settings-panel .ignored-list-wrap { max-height: 260px; overflow: auto; border: 1px solid var(--line); background: var(--panel); padding: 10px; border-radius: 6px; }
+.ignored-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.ignored-list li { display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 8px; border-radius: 6px; background: var(--panel-soft); border: 1px solid var(--line); }
+.ignored-list button { min-width: 32px; padding: 6px 8px; }
+.settings-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
 
 

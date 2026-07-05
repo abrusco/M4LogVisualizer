@@ -3,6 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="app-version" content="0.9.0">
     <title>M4 Log Visualizer</title>
     <link rel="stylesheet" href="styles.css">
   </head>
@@ -11,7 +12,10 @@
       <div class="brand">
         <span class="brand-mark">M4</span>
         <div>
-          <h1>Log Visualizer</h1>
+          <div class="brand-title-row">
+            <h1>Log Visualizer</h1>
+            <span class="app-version" id="appVersion">v0.0.0</span>
+          </div>
           <p id="logDir">Pasta padrao: C:\ProgramData\meta4\M4Temp\m4ldb</p>
         </div>
       </div>
@@ -53,6 +57,7 @@
         </div>
         <div class="actions">
           <button id="themeButton" class="icon-button theme-toggle" type="button" title="Alternar tema" aria-label="Alternar tema"><span id="themeIcon" class="theme-icon" aria-hidden="true">☀</span></button>
+          <button id="settingsButton" title="Configurações" aria-label="Configurações">Config</button>
           <button id="refreshButton" title="Recarregar logs">Atualizar</button>
           <button id="copyButton" title="Copiar SQL Oracle">Copiar SQL</button>
         </div>
@@ -104,6 +109,29 @@
           <h3>Trecho original</h3>
         </div>
         <pre id="rawOutput"></pre>
+      </section>
+
+      <section id="settingsPanel" class="panel settings-panel hidden">
+        <div class="panel-header">
+          <h3>Configurações</h3>
+        </div>
+        <div class="settings-content">
+          <label for="newIgnoredObject">Adicionar objeto ignorado</label>
+          <div class="add-row">
+            <input id="newIgnoredObject" type="text" placeholder="Nome do objeto (ex: SSC_APPUSER)">
+            <button id="addIgnoredButton">Adicionar</button>
+          </div>
+
+          <div class="ignored-list-wrap">
+            <h4>Objetos ignorados</h4>
+            <ul id="ignoredList" class="ignored-list"></ul>
+          </div>
+
+          <div class="settings-actions">
+            <button id="resetIgnoredButton">Resetar para padrão</button>
+            <button id="closeSettingsButton">Fechar</button>
+          </div>
+        </div>
       </section>
     </main>
 

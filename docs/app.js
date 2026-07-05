@@ -44,6 +44,112 @@ const SYSTEM_LOG_OBJECTS = new Set([
   'SSC_APP_USERS'
 ]);
 
+// Default user-manageable ignored objects (prefilled per request)
+const DEFAULT_USER_IGNORED = [
+  'SSC_APPUSER',
+  'ELIGIBILITY_CHANNEL',
+  'SCH_SESSION',
+  'SRAV_CONCEPTS',
+  'SAV_PARAMS',
+  'SRTC_LOGON_PARAMS',
+  'M4OBJECT_MAPPINGS',
+  'CBR_SEC_OBT_ORG',
+  'CBR_SEC_MASKS',
+  'SBP_RT',
+  'M4PRES_MAPPINGS',
+  'SAV_GDI_MEM',
+  'SBP_APP_ROLE',
+  'SC_RSM',
+  'LST_SCH_LU_SCOPE_TYPES',
+  'LST_SCH_LU_STREAM_TPS',
+  'LST_SCH_LU_CODE_TYPES',
+  'DESIGN_CHANNEL',
+  'SCH_TR1_T3S',
+  'SCH_TIS_OF_CHANNEL',
+  'SCH_CH_VALIDATIONS',
+  'SCH_LU_PRIORITIES',
+  'DICTIONARY_QUERY',
+  'LST_SDC_LU_M4_TYPES',
+  'MENUS',
+  'MENUS_HITS',
+  'SCH_ORG_TREE',
+  'SCH_CH_M4OS_USE_M4O_TIS',
+  'SCH_LEVEL2_ITEMS',
+  'SSC_SEC_OPT',
+  'SCH_TR_CURRENCY',
+  'SCH_TR_LU_EX_TYPE',
+  'SRTC_TR_COMPARE',
+  'PRESENTATION_FACTORY',
+  'SAU_LOGON_INFO_PENDING',
+  'SSC_DEVROLES'
+];
+
+let userIgnoredSet = new Set();
+
+function loadIgnoredObjects() {
+  try {
+    const raw = localStorage.getItem('m4-ignored-objects');
+    if (raw) {
+      const arr = JSON.parse(raw);
+      userIgnoredSet = new Set((arr || []).map((s) => String(s).toUpperCase()));
+      return;
+    }
+  } catch (e) {
+    // ignore
+  }
+  // initialize defaults
+  userIgnoredSet = new Set(DEFAULT_USER_IGNORED.map((s) => String(s).toUpperCase()));
+  saveIgnoredObjects();
+}
+
+function saveIgnoredObjects() {
+  try {
+    const arr = Array.from(userIgnoredSet.values()).sort();
+    localStorage.setItem('m4-ignored-objects', JSON.stringify(arr));
+  } catch (e) {
+    // ignore storage errors
+  }
+}
+
+function addIgnoredObject(name) {
+  const n = String(name || '').trim().toUpperCase();
+  if (!n) return;
+  if (userIgnoredSet.has(n)) return;
+  userIgnoredSet.add(n);
+  saveIgnoredObjects();
+  renderIgnoredList();
+  render();
+}
+
+function removeIgnoredObject(name) {
+  const n = String(name || '').trim().toUpperCase();
+  if (!n) return;
+  if (!userIgnoredSet.has(n)) return;
+  userIgnoredSet.delete(n);
+  saveIgnoredObjects();
+  renderIgnoredList();
+  render();
+}
+
+function renderIgnoredList() {
+  const container = elements.ignoredList;
+  if (!container) return;
+  const items = Array.from(userIgnoredSet).sort();
+  container.innerHTML = items.map((name) => `
+    <li data-name="${escapeHtml(name)}">
+      <span>${escapeHtml(name)}</span>
+      <button class="remove-ignored" title="Remover">✕</button>
+    </li>
+  `).join('');
+}
+
+function resetIgnoredToDefault() {
+  userIgnoredSet = new Set(DEFAULT_USER_IGNORED.map((s) => String(s).toUpperCase()));
+  saveIgnoredObjects();
+  renderIgnoredList();
+  render();
+}
+
 const state = {
   entries: [],
   files: [],
@@ -82,6 +188,13 @@ const elements = {
   themeIcon: document.querySelector('#themeIcon'),
   copyButton: document.querySelector('#copyButton'),
   refreshButton: document.querySelector('#refreshButton')
+  ,settingsButton: document.querySelector('#settingsButton')
+  ,settingsPanel: document.querySelector('#settingsPanel')
+  ,newIgnoredObject: document.querySelector('#newIgnoredObject')
+  ,addIgnoredButton: document.querySelector('#addIgnoredButton')
+  ,ignoredList: document.querySelector('#ignoredList')
+  ,resetIgnoredButton: document.querySelector('#resetIgnoredButton')
+  ,closeSettingsButton: document.querySelector('#closeSettingsButton')
 };
 
 function getStoredTheme() {
@@ -140,8 +253,9 @@ function decodeBuffer(buffer) {
 }
 
 function isAlwaysIgnoredEntry(entry) {
+  // agora consideramos apenas a lista gerenciada pelo usuário (userIgnoredSet)
   const object = (entry.meta4Object || '').toUpperCase();
-  return ALWAYS_IGNORED_OBJECTS.has(object);
+  return userIgnoredSet.has(object);
 }
 function isSystemLogEntry(entry) {
   const object = (entry.meta4Object || '').toUpperCase();
@@ -242,6 +356,108 @@ function normalizeSql(sql) {
   return sql.replace(/\s+/g, ' ').trim();
 }
 
+function splitSqlColumns(selectList) {
+  const columns = [];
+  let current = '';
+  let depth = 0;
+  let inString = false;
+
+  for (let i = 0; i < selectList.length; i += 1) {
+    const char = selectList[i];
+    const next = selectList[i + 1];
+
+    if (char === "'") {
+      current += char;
+      if (inString && next === "'") {
+        current += next;
+        i += 1;
+      } else {
+        inString = !inString;
+      }
+      continue;
+    }
+
+    if (!inString) {
+      if (char === '(') {
+        depth += 1;
+      } else if (char === ')') {
+        depth = Math.max(0, depth - 1);
+      } else if (char === ',' && depth === 0) {
+        columns.push(current.trim());
+        current = '';
+        continue;
+      }
+    }
+
+    current += char;
+  }
+
+  const trimmed = current.trim();
+  if (trimmed) {
+    columns.push(trimmed);
+  }
+
+  return columns;
+}
+
+function parseSelectColumnNames(sql) {
+  const match = sql.match(/select\s+([\s\S]+?)\s+from\s/i);
+  if (!match) {
+    return [];
+  }
+
+  return splitSqlColumns(match[1]).map((column) => {
+    const normalized = column.trim().replace(/^\(|\)$/g, '').trim();
+    const aliasMatch = normalized.match(/\s+as\s+(['"]?)([^'"\s]+)\1$/i);
+    if (aliasMatch) {
+      return aliasMatch[2];
+    }
+
+    const quotedAliasMatch = normalized.match(/(['"])([^'"\s]+)\1$/);
+    if (quotedAliasMatch) {
+      return quotedAliasMatch[2];
+    }
+
+    const aliasParts = normalized.split(/\s+/);
+    if (aliasParts.length > 1) {
+      const lastPart = aliasParts[aliasParts.length - 1];
+      if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(lastPart)) {
+        return lastPart;
+      }
+    }
+
+    const nameMatch = normalized.match(/(?:\.|\b)([A-Za-z_][A-Za-z0-9_]*)$/);
+    return nameMatch ? nameMatch[1] : normalized;
+  }).filter(Boolean);
+}
+
+function looksLikeHeaderRow(row) {
+  if (!Array.isArray(row) || row.length === 0) {
+    return false;
+  }
+
+  return row.every((value) => {
+    if (typeof value !== 'string') {
+      return false;
+    }
+
+    const trimmed = value.trim();
+    if (trimmed.length === 0) {
+      return false;
+    }
+
+    if (/\d/.test(trimmed)) {
+      return false;
+    }
+
+    if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+      return false;
+    }
+
+    return true;
+  });
+}
+
 function getExecutionType(headerLine) {
   const match = headerLine.match(/^\s*Execute\s+([^\.]+)/i);
   return match ? match[1].trim() : '';
@@ -258,6 +474,7 @@ function createEntry(fileName, index, headerLine) {
     sql: '',
     normalizedSql: '',
     rows: [],
+    columnNames: [],
     recordCount: null,
     durationMs: null,
     threadId: '',
@@ -339,7 +556,16 @@ function parseLogContent(content, fileName) {
     }
 
     if (looksLikeResultRow(trimmed)) {
-      current.rows.push(splitResultRow(trimmed));
+      const row = splitResultRow(trimmed);
+      if (current.rows.length === 0 && looksLikeHeaderRow(row)) {
+        current.columnNames = row.map((name) => name.trim().replace(/^"|"$/g, '')).filter((name) => name.length > 0);
+      } else {
+        if (current.columnNames.length === 0) {
+          const inferred = parseSelectColumnNames(current.sql);
+          current.columnNames = inferred.length === row.length ? inferred : [];
+        }
+        current.rows.push(row);
+      }
       readingSql = false;
       return;
     }
@@ -617,7 +843,9 @@ function filteredEntries() {
   const search = state.search.trim().toLowerCase();
   const entries = state.entries.filter((entry) => {
     const fileMatches = state.filterFile === 'all' || entry.fileName === state.filterFile;
-    const ignoredObjectMatches = !isAlwaysIgnoredEntry(entry);
+    const objectName = (entry.meta4Object || '').toUpperCase();
+    // apenas use a lista do usuário (userIgnoredSet) para determinar objetos ignorados
+    const ignoredObjectMatches = !userIgnoredSet.has(objectName);
     const realStmtMatches = !state.onlyRealStmt || entry.executionType === 'Real Stmt';
     const searchMatches = !search || entrySearchText(entry).includes(search);
     return fileMatches && ignoredObjectMatches && realStmtMatches && searchMatches;
@@ -677,7 +905,8 @@ function renderTable(entry) {
   }
 
   const columnCount = Math.max(...entry.rows.map((row) => row.length));
-  const header = Array.from({ length: columnCount }, (_, index) => `<th>Col ${index + 1}</th>`).join('');
+  const headerNames = entry.columnNames.length === columnCount ? entry.columnNames : Array.from({ length: columnCount }, (_, index) => `Col ${index + 1}`);
+  const header = headerNames.map((name) => `<th>${escapeHtml(name)}</th>`).join('');
   const body = entry.rows.map((row) => {
     const cells = Array.from({ length: columnCount }, (_, index) => `<td>${escapeHtml(row[index] ?? '')}</td>`).join('');
     return `<tr>${cells}</tr>`;
@@ -911,6 +1140,45 @@ if (elements.themeButton) {
   });
 }
 
+// Settings panel interactivity
+if (elements.settingsButton) {
+  elements.settingsButton.addEventListener('click', () => {
+    elements.settingsPanel?.classList.toggle('hidden');
+    renderIgnoredList();
+  });
+}
+
+if (elements.closeSettingsButton) {
+  elements.closeSettingsButton.addEventListener('click', () => {
+    elements.settingsPanel?.classList.add('hidden');
+  });
+}
+
+if (elements.addIgnoredButton) {
+  elements.addIgnoredButton.addEventListener('click', () => {
+    const val = elements.newIgnoredObject?.value || '';
+    if (!val.trim()) return;
+    addIgnoredObject(val);
+    elements.newIgnoredObject.value = '';
+  });
+}
+
+if (elements.ignoredList) {
+  elements.ignoredList.addEventListener('click', (ev) => {
+    const btn = ev.target.closest('.remove-ignored');
+    if (!btn) return;
+    const li = btn.closest('li');
+    const name = li?.dataset?.name;
+    if (name) removeIgnoredObject(name);
+  });
+}
+
+if (elements.resetIgnoredButton) {
+  elements.resetIgnoredButton.addEventListener('click', () => {
+    resetIgnoredToDefault();
+  });
+}
+
 if (elements.formatSqlButton) {
   elements.formatSqlButton.addEventListener('click', () => {
     state.formatSql = !state.formatSql;
@@ -933,7 +1201,30 @@ elements.copyButton.addEventListener('click', async () => {
 
 elements.refreshButton.addEventListener('click', reloadLoadedFiles);
 
+async function loadAppVersion() {
+  try {
+    const response = await fetch('version.json', { cache: 'no-store' });
+    if (response.ok) {
+      const data = await response.json();
+      const version = data.version || '0.0.0';
+      document.querySelector('#appVersion').textContent = `v${version}`;
+      return;
+    }
+  } catch (e) {
+    // fallback to meta below
+  }
+
+  const meta = document.querySelector('meta[name="app-version"]');
+  const v = (meta && meta.getAttribute('content')) || '0.0.0';
+  document.querySelector('#appVersion').textContent = `v${v}`;
+}
+
 initializeTheme();
+loadAppVersion();
+
+// load user ignored objects (from localStorage or defaults)
+loadIgnoredObjects();
+renderIgnoredList();
 
 loadDefaultLogs().catch((error) => {
   state.files = [];
