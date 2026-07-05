@@ -195,6 +195,7 @@ const elements = {
   ,ignoredList: document.querySelector('#ignoredList')
   ,resetIgnoredButton: document.querySelector('#resetIgnoredButton')
   ,closeSettingsButton: document.querySelector('#closeSettingsButton')
+  ,settingsBackdrop: document.querySelector('#settingsBackdrop')
 };
 
 function getStoredTheme() {
@@ -1143,14 +1144,34 @@ if (elements.themeButton) {
 // Settings panel interactivity
 if (elements.settingsButton) {
   elements.settingsButton.addEventListener('click', () => {
-    elements.settingsPanel?.classList.toggle('hidden');
+    const panel = elements.settingsPanel || document.querySelector('#settingsPanel');
+    const backdrop = elements.settingsBackdrop || document.querySelector('#settingsBackdrop');
+    if (!panel) {
+      console.warn('Settings panel not found');
+      return;
+    }
+    const isHidden = panel.classList.toggle('hidden');
+    if (backdrop) {
+      if (panel.classList.contains('hidden')) {
+        backdrop.classList.add('hidden');
+      } else {
+        backdrop.classList.remove('hidden');
+      }
+    }
     renderIgnoredList();
+    const input = elements.newIgnoredObject || document.querySelector('#newIgnoredObject');
+    if (input && !panel.classList.contains('hidden')) {
+      input.focus();
+    }
   });
 }
 
 if (elements.closeSettingsButton) {
   elements.closeSettingsButton.addEventListener('click', () => {
-    elements.settingsPanel?.classList.add('hidden');
+    const panel = elements.settingsPanel || document.querySelector('#settingsPanel');
+    const backdrop = elements.settingsBackdrop || document.querySelector('#settingsBackdrop');
+    if (panel) panel.classList.add('hidden');
+    if (backdrop) backdrop.classList.add('hidden');
   });
 }
 
@@ -1178,6 +1199,27 @@ if (elements.resetIgnoredButton) {
     resetIgnoredToDefault();
   });
 }
+
+// backdrop click closes panel
+if (elements.settingsBackdrop) {
+  elements.settingsBackdrop.addEventListener('click', () => {
+    const panel = elements.settingsPanel || document.querySelector('#settingsPanel');
+    elements.settingsBackdrop.classList.add('hidden');
+    if (panel) panel.classList.add('hidden');
+  });
+}
+
+// ESC to close
+document.addEventListener('keydown', (ev) => {
+  if (ev.key === 'Escape') {
+    const panel = elements.settingsPanel || document.querySelector('#settingsPanel');
+    const backdrop = elements.settingsBackdrop || document.querySelector('#settingsBackdrop');
+    if (panel && !panel.classList.contains('hidden')) {
+      panel.classList.add('hidden');
+      if (backdrop) backdrop.classList.add('hidden');
+    }
+  }
+});
 
 if (elements.formatSqlButton) {
   elements.formatSqlButton.addEventListener('click', () => {

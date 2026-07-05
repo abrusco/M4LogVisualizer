@@ -576,6 +576,15 @@ td {
 
 /* Settings panel */
 .settings-panel.hidden { display: none; }
+.settings-panel {
+  position: fixed;
+  right: 24px;
+  top: 80px;
+  width: 420px;
+  max-width: calc(100% - 48px);
+  z-index: 80;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.35);
+}
 .settings-panel .settings-content { padding: 14px; display: flex; flex-direction: column; gap: 12px; }
 .settings-panel .add-row { display: flex; gap: 8px; }
 .settings-panel .add-row input { flex: 1; padding: 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--control); color: var(--text); }
@@ -584,6 +593,10 @@ td {
 .ignored-list li { display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 8px; border-radius: 6px; background: var(--panel-soft); border: 1px solid var(--line); }
 .ignored-list button { min-width: 32px; padding: 6px 8px; }
 .settings-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+/* Backdrop used by settings panel */
+#settingsBackdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.36); z-index: 70; }
+#settingsBackdrop.hidden { display: none; }
 
 
 
