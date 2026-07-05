@@ -43,6 +43,6 @@ docs/styles.css
 docs/version.json
 ```
 
-## Sobre SEO e descoberta
+## Sobre
 
-Para melhorar a descoberta no Google, este projeto foi descrito com palavras-chave relevantes como: meta4, peoplenet, cegid, visualizador de logs, análise de logs Meta4, SQL Oracle e M4 Log Visualizer.
+Este é um visualizador de logs desenvolvido para facilitar a análise de execuções em ambientes Meta4, PeopleNet e Cegid. Para melhorar a descoberta, o projeto foi descrito com palavras-chave relevantes como: meta4, peoplenet, cegid, visualizador de logs, análise de logs Meta4, SQL Oracle e M4 Log Visualizer.
