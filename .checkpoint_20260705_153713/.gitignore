@@ -1,0 +1,23 @@
+# Node.js dependencies
+node_modules/
+
+# Local environment files
+.env
+.env.*.local
+
+# Editor directories and files
+.vscode/
+.DS_Store
+
+# Python virtual environment
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Build output
+dist/
+
+# Ignore sensitive logs and temporary data
+docs/m4ldb/
