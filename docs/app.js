@@ -559,8 +559,22 @@ function createEntry(fileName, index, headerLine) {
     recordCount: null,
     durationMs: null,
     threadId: '',
+    searchText: '',
     rawLines: [headerLine]
   };
+}
+
+function buildEntrySearchText(entry) {
+  return [
+    entry.fileName,
+    entry.meta4Object,
+    entry.node,
+    entry.recordSet,
+    entry.connection?.organization,
+    entry.connection?.date,
+    entry.sql,
+    entry.rows.flat().join(' ')
+  ].join(' ').toLowerCase();
 }
 
 function cloneEntryForStatement(entry, index, statementLine) {
@@ -576,6 +590,10 @@ function cloneEntryForStatement(entry, index, statementLine) {
   };
 }
 
+function isSqlTerminationLine(trimmed) {
+  return /^(No Data Found\b|Num Items\b|Num Registers\b|Calculating Time\.|APISQL Statement in TI\b|#-+|#\s*[A-Za-z_][A-Za-z0-9_\s#]*#)/i.test(trimmed);
+}
+
 function parseLogContent(content, fileName) {
   const lines = content.split(/\r?\n/);
   const entries = [];
@@ -588,6 +606,7 @@ function parseLogContent(content, fileName) {
     }
     current.sql = normalizeOracleDateLiterals(current.sql.trim());
     current.normalizedSql = normalizeSql(current.sql);
+    current.searchText = buildEntrySearchText(current);
     entries.push(current);
     current = null;
     readingSql = false;
@@ -633,6 +652,11 @@ function parseLogContent(content, fileName) {
     if (/^Calculating Time\./i.test(trimmed)) {
       Object.assign(current, parseTime(trimmed));
       readingSql = false;
+      return;
+    }
+
+    if (readingSql && isSqlTerminationLine(trimmed)) {
+      finishCurrent();
       return;
     }
 
@@ -849,16 +873,7 @@ function selectedEntry() {
 }
 
 function entrySearchText(entry) {
-  return [
-    entry.fileName,
-    entry.meta4Object,
-    entry.node,
-    entry.recordSet,
-    entry.connection?.organization,
-    entry.connection?.date,
-    entry.sql,
-    entry.rows.flat().join(' ')
-  ].join(' ').toLowerCase();
+  return entry.searchText || buildEntrySearchText(entry);
 }
 
 function entryDisplayTitle(entry) {
@@ -1203,11 +1218,17 @@ elements.onlyRealStmt.addEventListener('change', () => {
 
 elements.searchInput.addEventListener('input', () => {
   state.search = elements.searchInput.value;
-  const visible = filteredEntries();
-  if (!visible.some((entry) => entry.id === state.selectedId)) {
-    state.selectedId = visible[0]?.id || null;
+  if (state.searchRenderTimer) {
+    window.clearTimeout(state.searchRenderTimer);
   }
-  render();
+  state.searchRenderTimer = window.setTimeout(() => {
+    state.searchRenderTimer = null;
+    const visible = filteredEntries();
+    if (!visible.some((entry) => entry.id === state.selectedId)) {
+      state.selectedId = visible[0]?.id || null;
+    }
+    render();
+  }, 140);
 });
 
 elements.fileInput.addEventListener('change', () => {
