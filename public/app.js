@@ -131,6 +131,16 @@ function looksLikeResultRow(line) {
   return /^("?[^"]+"?|-?[0-9]|NULL\b|<null>\b)/i.test(trimmed);
 }
 
+function normalizeOracleDateLiterals(sql) {
+  return String(sql || '')
+    .replace(/\{\s*d\s*'(\d{4})-(\d{2})-(\d{2})'\s*\}/gi, (_match, year, month, day) => {
+      return `to_date('${day}/${month}/${year}', 'DD/MM/YYYY')`;
+    })
+    .replace(/\{\s*ts\s*'(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})'\s*\}/gi, (_match, year, month, day, hour, minute, second) => {
+      return `to_date('${year}-${month}-${day} ${hour}:${minute}:${second}', 'YYYY-MM-DD HH24:MI:SS')`;
+    });
+}
+
 function normalizeSql(sql) {
   return sql.replace(/\s+/g, ' ').trim();
 }
@@ -174,7 +184,7 @@ function parseLogContent(content, fileName) {
     if (!current) {
       return;
     }
-    current.sql = current.sql.trim();
+    current.sql = normalizeOracleDateLiterals(current.sql.trim());
     current.normalizedSql = normalizeSql(current.sql);
     entries.push(current);
     current = null;

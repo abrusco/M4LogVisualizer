@@ -112,13 +112,79 @@ function saveIgnoredObjects() {
 }
 
 function addIgnoredObject(name) {
+  const options = arguments[1] || {};
+  const deferSelectionMs = Number(options.deferSelectionMs) || 0;
   const n = String(name || '').trim().toUpperCase();
   if (!n) return;
   if (userIgnoredSet.has(n)) return;
   userIgnoredSet.add(n);
   saveIgnoredObjects();
   renderIgnoredList();
-  render();
+
+  const refreshSelectionAndRender = () => {
+    const visible = filteredEntries();
+    if (!visible.some((entry) => entry.id === state.selectedId)) {
+      state.selectedId = visible[0]?.id || null;
+    }
+    render();
+  };
+
+  if (state.pendingIgnoreSelectionTimer) {
+    window.clearTimeout(state.pendingIgnoreSelectionTimer);
+    state.pendingIgnoreSelectionTimer = null;
+  }
+
+  if (deferSelectionMs > 0) {
+    // Atualiza a lista imediatamente, mas preserva a selecao atual por um instante
+    // para tornar o feedback visual de "ignorar" perceptivel ao usuario.
+    render();
+    state.pendingIgnoreSelectionTimer = window.setTimeout(() => {
+      state.pendingIgnoreSelectionTimer = null;
+      refreshSelectionAndRender();
+    }, deferSelectionMs);
+    return;
+  }
+
+  refreshSelectionAndRender();
+}
+
+function showIgnoreObjectFeedback(type = 'added') {
+  const objectBox = elements.metaObject?.closest('.status-item');
+  if (objectBox) {
+    objectBox.classList.remove('status-item-feedback-added', 'status-item-feedback-existing');
+    const feedbackClass = type === 'existing' ? 'status-item-feedback-existing' : 'status-item-feedback-added';
+    objectBox.classList.add(feedbackClass);
+    window.setTimeout(() => {
+      objectBox.classList.remove(feedbackClass);
+    }, 700);
+  }
+
+  if (!elements.ignoreObjectLink) {
+    return;
+  }
+
+  const originalText = elements.ignoreObjectLink.textContent || 'ignorar';
+  const originalTitle = elements.ignoreObjectLink.title || '';
+  if (type === 'existing') {
+    elements.ignoreObjectLink.textContent = 'ja ignorado';
+    elements.ignoreObjectLink.title = 'Este objeto ja esta na lista de ignorados';
+  } else {
+    elements.ignoreObjectLink.textContent = 'ignorado';
+    elements.ignoreObjectLink.title = 'Objeto adicionado a lista de ignorados';
+  }
+
+  window.setTimeout(() => {
+    const entry = selectedEntry();
+    const objectName = (entry?.meta4Object || '').trim().toUpperCase();
+    if (!objectName) {
+      elements.ignoreObjectLink.textContent = originalText;
+      elements.ignoreObjectLink.title = originalTitle;
+      return;
+    }
+    const isIgnored = userIgnoredSet.has(objectName);
+    elements.ignoreObjectLink.textContent = isIgnored ? 'ignorado' : 'ignorar';
+    elements.ignoreObjectLink.title = isIgnored ? 'Este objeto ja esta na lista de ignorados' : 'Adicionar objeto atual a lista de ignorados';
+  }, 1200);
 }
 
 function removeIgnoredObject(name) {
@@ -155,6 +221,7 @@ const state = {
   files: [],
   loadedFiles: [],
   source: 'default',
+  pendingIgnoreSelectionTimer: null,
   selectedId: null,
   filterFile: 'all',
   search: '',
@@ -175,6 +242,7 @@ const elements = {
   selectedFile: document.querySelector('#selectedFile'),
   selectedTitle: document.querySelector('#selectedTitle'),
   metaObject: document.querySelector('#metaObject'),
+  ignoreObjectLink: document.querySelector('#ignoreObjectLink'),
   nodeName: document.querySelector('#nodeName'),
   roleName: document.querySelector('#roleName'),
   organization: document.querySelector('#organization'),
@@ -355,6 +423,16 @@ function looksLikeResultRow(line) {
   return /^("?[^"]+"?|-?[0-9]|NULL\b|<null>\b)/i.test(trimmed);
 }
 
+function normalizeOracleDateLiterals(sql) {
+  return String(sql || '')
+    .replace(/\{\s*d\s*'(\d{4})-(\d{2})-(\d{2})'\s*\}/gi, (_match, year, month, day) => {
+      return `to_date('${day}/${month}/${year}', 'DD/MM/YYYY')`;
+    })
+    .replace(/\{\s*ts\s*'(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})'\s*\}/gi, (_match, year, month, day, hour, minute, second) => {
+      return `to_date('${year}-${month}-${day} ${hour}:${minute}:${second}', 'YYYY-MM-DD HH24:MI:SS')`;
+    });
+}
+
 function normalizeSql(sql) {
   return sql.replace(/\s+/g, ' ').trim();
 }
@@ -508,7 +586,7 @@ function parseLogContent(content, fileName) {
     if (!current) {
       return;
     }
-    current.sql = current.sql.trim();
+    current.sql = normalizeOracleDateLiterals(current.sql.trim());
     current.normalizedSql = normalizeSql(current.sql);
     entries.push(current);
     current = null;
@@ -929,6 +1007,11 @@ function renderSelectedEntry() {
     elements.selectedFile.textContent = 'Nenhum item selecionado';
     elements.selectedTitle.textContent = 'Selecione uma query';
     elements.metaObject.textContent = '-';
+    if (elements.ignoreObjectLink) {
+      elements.ignoreObjectLink.classList.remove('is-visible', 'is-disabled');
+      elements.ignoreObjectLink.removeAttribute('aria-disabled');
+      elements.ignoreObjectLink.dataset.object = '';
+    }
     elements.nodeName.textContent = '-';
     elements.roleName.textContent = '-';
     elements.organization.textContent = '-';
@@ -945,7 +1028,19 @@ function renderSelectedEntry() {
 
   elements.selectedFile.textContent = `${entry.fileName} | linha ${entry.lineNumber}`;
   elements.selectedTitle.textContent = entryDisplayTitle(entry);
-  elements.metaObject.textContent = entry.meta4Object || '-';
+  const objectName = entry.meta4Object || '-';
+  const normalizedObjectName = String(objectName).trim().toUpperCase();
+  const isIgnoredObject = !!normalizedObjectName && normalizedObjectName !== '-' && userIgnoredSet.has(normalizedObjectName);
+  elements.metaObject.textContent = objectName;
+  if (elements.ignoreObjectLink) {
+    const shouldShowLink = !!normalizedObjectName && normalizedObjectName !== '-';
+    elements.ignoreObjectLink.dataset.object = shouldShowLink ? objectName : '';
+    elements.ignoreObjectLink.classList.toggle('is-visible', shouldShowLink);
+    elements.ignoreObjectLink.classList.toggle('is-disabled', isIgnoredObject);
+    elements.ignoreObjectLink.setAttribute('aria-disabled', isIgnoredObject ? 'true' : 'false');
+    elements.ignoreObjectLink.textContent = isIgnoredObject ? 'ignorado' : 'ignorar';
+    elements.ignoreObjectLink.title = isIgnoredObject ? 'Este objeto ja esta na lista de ignorados' : 'Adicionar objeto atual a lista de ignorados';
+  }
   elements.nodeName.textContent = entry.node || '-';
   elements.roleName.textContent = entry.connection?.role || '-';
   elements.organization.textContent = entry.connection?.organization || '-';
@@ -1191,6 +1286,23 @@ if (elements.addIgnoredButton) {
     if (!val.trim()) return;
     addIgnoredObject(val);
     elements.newIgnoredObject.value = '';
+  });
+}
+
+if (elements.ignoreObjectLink) {
+  elements.ignoreObjectLink.addEventListener('click', (event) => {
+    event.preventDefault();
+    const objectName = elements.ignoreObjectLink.dataset.object || selectedEntry()?.meta4Object || '';
+    if (!objectName) {
+      return;
+    }
+    const alreadyIgnored = userIgnoredSet.has(String(objectName).trim().toUpperCase());
+    if (alreadyIgnored) {
+      showIgnoreObjectFeedback('existing');
+      return;
+    }
+    addIgnoredObject(objectName, { deferSelectionMs: 1000 });
+    showIgnoreObjectFeedback('added');
   });
 }
 

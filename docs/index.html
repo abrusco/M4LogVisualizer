@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="app-version" content="0.9.3">
+    <meta name="app-version" content="0.9.4">
     <title>M4 Log Visualizer</title>
     <link rel="stylesheet" href="styles.css">
   </head>
@@ -61,7 +61,13 @@
           <p class="viewer-meta-file" id="selectedFile">Nenhum item selecionado</p>
           <h2 class="viewer-meta-title" id="selectedTitle">Selecione uma query</h2>
           <div class="status-bar">
-            <span class="status-item status-item-primary"><span class="status-label">Objeto</span><strong id="metaObject">-</strong></span>
+            <span class="status-item status-item-primary">
+              <span class="status-label">Objeto</span>
+              <span class="status-object-row">
+                <strong id="metaObject">-</strong>
+                <a id="ignoreObjectLink" class="status-ignore-link" href="#" aria-label="Ignorar objeto atual">ignorar</a>
+              </span>
+            </span>
             <span class="status-item"><span class="status-label">Node</span><strong id="nodeName">-</strong></span>
             <span class="status-item status-item-compact"><span class="status-label">Role</span><strong id="roleName">-</strong></span>
             <span class="status-item"><span class="status-label">Data</span><strong id="date">-</strong></span>
