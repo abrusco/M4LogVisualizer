@@ -175,6 +175,8 @@ const elements = {
   selectedFile: document.querySelector('#selectedFile'),
   selectedTitle: document.querySelector('#selectedTitle'),
   metaObject: document.querySelector('#metaObject'),
+  nodeName: document.querySelector('#nodeName'),
+  roleName: document.querySelector('#roleName'),
   organization: document.querySelector('#organization'),
   date: document.querySelector('#date'),
   duration: document.querySelector('#duration'),
@@ -719,12 +721,15 @@ function highlightSql(sql) {
     'NVL', 'TO_DATE', 'TRUNC', 'REGEXP_SUBSTR', 'SYSDATE', 'COUNT', 'SUM',
     'MIN', 'MAX', 'AVG', 'SUBSTR', 'DECODE', 'COALESCE', 'TO_CHAR', 'TO_NUMBER'
   ]);
-  const tokenPattern = /(--[^\n]*|'(?:''|[^'])*'|\b\d+(?:\.\d+)?\b|\b[A-Za-z_][A-Za-z0-9_$#]*\b|<>|<=|>=|:=|[=+\-*/(),.;])/g;
+  const tokenPattern = /(--[^\n]*|"(?:""|[^"])*"|'(?:''|[^'])*'|\b\d+(?:\.\d+)?\b|\b[A-Za-z_][A-Za-z0-9_$#]*\b|<>|<=|>=|:=|[=+\-*/(),.;])/g;
 
   return String(sql || '').replace(tokenPattern, (token) => {
     const escaped = escapeHtml(token);
     if (token.startsWith('--')) {
       return `<span class="sql-comment">${escaped}</span>`;
+    }
+    if (token.startsWith('"')) {
+      return `<span class="sql-identifier">${escaped}</span>`;
     }
     if (token.startsWith("'")) {
       return `<span class="sql-string">${escaped}</span>`;
@@ -924,6 +929,8 @@ function renderSelectedEntry() {
     elements.selectedFile.textContent = 'Nenhum item selecionado';
     elements.selectedTitle.textContent = 'Selecione uma query';
     elements.metaObject.textContent = '-';
+    elements.nodeName.textContent = '-';
+    elements.roleName.textContent = '-';
     elements.organization.textContent = '-';
     elements.date.textContent = '-';
     elements.duration.textContent = '-';
@@ -939,6 +946,8 @@ function renderSelectedEntry() {
   elements.selectedFile.textContent = `${entry.fileName} | linha ${entry.lineNumber}`;
   elements.selectedTitle.textContent = entryDisplayTitle(entry);
   elements.metaObject.textContent = entry.meta4Object || '-';
+  elements.nodeName.textContent = entry.node || '-';
+  elements.roleName.textContent = entry.connection?.role || '-';
   elements.organization.textContent = entry.connection?.organization || '-';
   elements.date.textContent = formatDate(entry.connection?.date);
   elements.duration.textContent = entry.durationMs == null ? '-' : `${entry.durationMs} ms`;
@@ -946,7 +955,8 @@ function renderSelectedEntry() {
   const sqlText = currentSqlText(entry);
   elements.sqlOutput.innerHTML = sqlText ? highlightSql(sqlText) : 'Sem SQL capturado.';
   updateFormatSqlButton();
-  elements.rawOutput.textContent = (entry.rawLines || []).join('\n');
+  const rawText = (entry.rawLines || []).join('\n');
+  elements.rawOutput.innerHTML = rawText ? highlightSql(rawText) : '';
   renderTable(entry);
 }
 
@@ -1228,28 +1238,37 @@ if (elements.formatSqlButton) {
   });
 }
 
-elements.copyButton.addEventListener('click', async () => {
-  const entry = selectedEntry();
-  if (!entry?.sql) {
-    return;
-  }
-  await navigator.clipboard.writeText(currentSqlText(entry));
-  const original = elements.copyButton.textContent;
-  elements.copyButton.textContent = 'Copiado';
-  window.setTimeout(() => {
-    elements.copyButton.textContent = original;
-  }, 1200);
-});
+if (elements.copyButton) {
+  elements.copyButton.addEventListener('click', async () => {
+    const entry = selectedEntry();
+    if (!entry?.sql) {
+      return;
+    }
+    await navigator.clipboard.writeText(currentSqlText(entry));
+    const original = elements.copyButton.textContent;
+    elements.copyButton.textContent = 'Copiado';
+    window.setTimeout(() => {
+      elements.copyButton.textContent = original;
+    }, 1200);
+  });
+}
 
-elements.refreshButton.addEventListener('click', reloadLoadedFiles);
+if (elements.refreshButton) {
+  elements.refreshButton.addEventListener('click', reloadLoadedFiles);
+}
 
 async function loadAppVersion() {
+  const appVersionElement = document.querySelector('#appVersion');
+  if (!appVersionElement) {
+    return;
+  }
+
   try {
     const response = await fetch('version.json', { cache: 'no-store' });
     if (response.ok) {
       const data = await response.json();
       const version = data.version || '0.0.0';
-      document.querySelector('#appVersion').textContent = `v${version}`;
+      appVersionElement.textContent = `v${version}`;
       return;
     }
   } catch (e) {
@@ -1258,7 +1277,7 @@ async function loadAppVersion() {
 
   const meta = document.querySelector('meta[name="app-version"]');
   const v = (meta && meta.getAttribute('content')) || '0.0.0';
-  document.querySelector('#appVersion').textContent = `v${v}`;
+  appVersionElement.textContent = `v${v}`;
 }
 
 initializeTheme();
