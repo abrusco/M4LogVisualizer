@@ -1,10 +1,23 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="pt-BR">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="app-version" content="0.9.2">
-    <title>M4 Log Visualizer</title>
+    <title>M4 Log Visualizer - Análise de Logs Meta4, PeopleNet e Cegid</title>
+    <meta name="description" content="Visualizador web standalone de logs Meta4, PeopleNet e Cegid. Analisa SQLs Oracle, objetos Meta4 e resultados em arquivos de log sem depender de backend.">
+    <meta name="keywords" content="meta4, log viewer, log analyzer, oracle sql, peoplenet, cegid, visualizador de logs, análise de logs">
+    <meta name="author" content="abrusco">
+    <meta name="theme-color" content="#2c3e50">
+    <meta property="og:title" content="M4 Log Visualizer">
+    <meta property="og:description" content="Visualizador de logs Meta4, PeopleNet e Cegid para análise rápida de SQLs Oracle e objetos Meta4.">
+    <meta property="og:url" content="https://abrusco.github.io/M4LogVisualizer/">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="https://github.com/abrusco/M4LogVisualizer/raw/main/docs/favicon.ico">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="M4 Log Visualizer">
+    <meta name="twitter:description" content="Visualizador de logs Meta4, PeopleNet e Cegid">
+    <link rel="canonical" href="https://abrusco.github.io/M4LogVisualizer/">
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
@@ -35,7 +48,7 @@
         <button class="filter active" data-file="all">Todos</button>
         <button class="filter" data-file="ldbinsp0_1.txt">ldbinsp0_1</button>
         <button class="filter" data-file="ldbinsp0_2.txt">ldbinsp0_2</button>
-        <button id="sortDescButton" class="icon-button sort-button active" type="button" title="Eventos mais recentes no topo" aria-label="Eventos mais recentes no topo"><span id="sortIcon" aria-hidden="true">↓</span></button>
+        <button id="sortDescButton" class="icon-button sort-button active" type="button" title="Eventos mais recentes no topo" aria-label="Eventos mais recentes no topo"><span id="sortIcon" aria-hidden="true">⬇</span></button>
       </div>
 
       
@@ -139,15 +152,3 @@
     <script src="app.js"></script>
   </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
