@@ -112,13 +112,79 @@ function saveIgnoredObjects() {
 }
 
 function addIgnoredObject(name) {
+  const options = arguments[1] || {};
+  const deferSelectionMs = Number(options.deferSelectionMs) || 0;
   const n = String(name || '').trim().toUpperCase();
   if (!n) return;
   if (userIgnoredSet.has(n)) return;
   userIgnoredSet.add(n);
   saveIgnoredObjects();
   renderIgnoredList();
-  render();
+
+  const refreshSelectionAndRender = () => {
+    const visible = filteredEntries();
+    if (!visible.some((entry) => entry.id === state.selectedId)) {
+      state.selectedId = visible[0]?.id || null;
+    }
+    render();
+  };
+
+  if (state.pendingIgnoreSelectionTimer) {
+    window.clearTimeout(state.pendingIgnoreSelectionTimer);
+    state.pendingIgnoreSelectionTimer = null;
+  }
+
+  if (deferSelectionMs > 0) {
+    // Atualiza a lista imediatamente, mas preserva a selecao atual por um instante
+    // para tornar o feedback visual de "ignorar" perceptivel ao usuario.
+    render();
+    state.pendingIgnoreSelectionTimer = window.setTimeout(() => {
+      state.pendingIgnoreSelectionTimer = null;
+      refreshSelectionAndRender();
+    }, deferSelectionMs);
+    return;
+  }
+
+  refreshSelectionAndRender();
+}
+
+function showIgnoreObjectFeedback(type = 'added') {
+  const objectBox = elements.metaObject?.closest('.status-item');
+  if (objectBox) {
+    objectBox.classList.remove('status-item-feedback-added', 'status-item-feedback-existing');
+    const feedbackClass = type === 'existing' ? 'status-item-feedback-existing' : 'status-item-feedback-added';
+    objectBox.classList.add(feedbackClass);
+    window.setTimeout(() => {
+      objectBox.classList.remove(feedbackClass);
+    }, 700);
+  }
+
+  if (!elements.ignoreObjectLink) {
+    return;
+  }
+
+  const originalText = elements.ignoreObjectLink.textContent || 'ignorar';
+  const originalTitle = elements.ignoreObjectLink.title || '';
+  if (type === 'existing') {
+    elements.ignoreObjectLink.textContent = 'ja ignorado';
+    elements.ignoreObjectLink.title = 'Este objeto ja esta na lista de ignorados';
+  } else {
+    elements.ignoreObjectLink.textContent = 'ignorado';
+    elements.ignoreObjectLink.title = 'Objeto adicionado a lista de ignorados';
+  }
+
+  window.setTimeout(() => {
+    const entry = selectedEntry();
+    const objectName = (entry?.meta4Object || '').trim().toUpperCase();
+    if (!objectName) {
+      elements.ignoreObjectLink.textContent = originalText;
+      elements.ignoreObjectLink.title = originalTitle;
+      return;
+    }
+    const isIgnored = userIgnoredSet.has(objectName);
+    elements.ignoreObjectLink.textContent = isIgnored ? 'ignorado' : 'ignorar';
+    elements.ignoreObjectLink.title = isIgnored ? 'Este objeto ja esta na lista de ignorados' : 'Adicionar objeto atual a lista de ignorados';
+  }, 1200);
 }
 
 function removeIgnoredObject(name) {
@@ -155,6 +221,7 @@ const state = {
   files: [],
   loadedFiles: [],
   source: 'default',
+  pendingIgnoreSelectionTimer: null,
   selectedId: null,
   filterFile: 'all',
   search: '',
@@ -175,6 +242,9 @@ const elements = {
   selectedFile: document.querySelector('#selectedFile'),
   selectedTitle: document.querySelector('#selectedTitle'),
   metaObject: document.querySelector('#metaObject'),
+  ignoreObjectLink: document.querySelector('#ignoreObjectLink'),
+  nodeName: document.querySelector('#nodeName'),
+  roleName: document.querySelector('#roleName'),
   organization: document.querySelector('#organization'),
   date: document.querySelector('#date'),
   duration: document.querySelector('#duration'),
@@ -353,6 +423,16 @@ function looksLikeResultRow(line) {
   return /^("?[^"]+"?|-?[0-9]|NULL\b|<null>\b)/i.test(trimmed);
 }
 
+function normalizeOracleDateLiterals(sql) {
+  return String(sql || '')
+    .replace(/\{\s*d\s*'(\d{4})-(\d{2})-(\d{2})'\s*\}/gi, (_match, year, month, day) => {
+      return `to_date('${day}/${month}/${year}', 'DD/MM/YYYY')`;
+    })
+    .replace(/\{\s*ts\s*'(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})'\s*\}/gi, (_match, year, month, day, hour, minute, second) => {
+      return `to_date('${year}-${month}-${day} ${hour}:${minute}:${second}', 'YYYY-MM-DD HH24:MI:SS')`;
+    });
+}
+
 function normalizeSql(sql) {
   return sql.replace(/\s+/g, ' ').trim();
 }
@@ -479,8 +559,22 @@ function createEntry(fileName, index, headerLine) {
     recordCount: null,
     durationMs: null,
     threadId: '',
+    searchText: '',
     rawLines: [headerLine]
   };
+}
+
+function buildEntrySearchText(entry) {
+  return [
+    entry.fileName,
+    entry.meta4Object,
+    entry.node,
+    entry.recordSet,
+    entry.connection?.organization,
+    entry.connection?.date,
+    entry.sql,
+    entry.rows.flat().join(' ')
+  ].join(' ').toLowerCase();
 }
 
 function cloneEntryForStatement(entry, index, statementLine) {
@@ -496,6 +590,10 @@ function cloneEntryForStatement(entry, index, statementLine) {
   };
 }
 
+function isSqlTerminationLine(trimmed) {
+  return /^(No Data Found\b|Num Items\b|Num Registers\b|Calculating Time\.|APISQL Statement in TI\b|#-+|#\s*[A-Za-z_][A-Za-z0-9_\s#]*#)/i.test(trimmed);
+}
+
 function parseLogContent(content, fileName) {
   const lines = content.split(/\r?\n/);
   const entries = [];
@@ -506,8 +604,9 @@ function parseLogContent(content, fileName) {
     if (!current) {
       return;
     }
-    current.sql = current.sql.trim();
+    current.sql = normalizeOracleDateLiterals(current.sql.trim());
     current.normalizedSql = normalizeSql(current.sql);
+    current.searchText = buildEntrySearchText(current);
     entries.push(current);
     current = null;
     readingSql = false;
@@ -553,6 +652,11 @@ function parseLogContent(content, fileName) {
     if (/^Calculating Time\./i.test(trimmed)) {
       Object.assign(current, parseTime(trimmed));
       readingSql = false;
+      return;
+    }
+
+    if (readingSql && isSqlTerminationLine(trimmed)) {
+      finishCurrent();
       return;
     }
 
@@ -719,12 +823,15 @@ function highlightSql(sql) {
     'NVL', 'TO_DATE', 'TRUNC', 'REGEXP_SUBSTR', 'SYSDATE', 'COUNT', 'SUM',
     'MIN', 'MAX', 'AVG', 'SUBSTR', 'DECODE', 'COALESCE', 'TO_CHAR', 'TO_NUMBER'
   ]);
-  const tokenPattern = /(--[^\n]*|'(?:''|[^'])*'|\b\d+(?:\.\d+)?\b|\b[A-Za-z_][A-Za-z0-9_$#]*\b|<>|<=|>=|:=|[=+\-*/(),.;])/g;
+  const tokenPattern = /(--[^\n]*|"(?:""|[^"])*"|'(?:''|[^'])*'|\b\d+(?:\.\d+)?\b|\b[A-Za-z_][A-Za-z0-9_$#]*\b|<>|<=|>=|:=|[=+\-*/(),.;])/g;
 
   return String(sql || '').replace(tokenPattern, (token) => {
     const escaped = escapeHtml(token);
     if (token.startsWith('--')) {
       return `<span class="sql-comment">${escaped}</span>`;
+    }
+    if (token.startsWith('"')) {
+      return `<span class="sql-identifier">${escaped}</span>`;
     }
     if (token.startsWith("'")) {
       return `<span class="sql-string">${escaped}</span>`;
@@ -766,16 +873,7 @@ function selectedEntry() {
 }
 
 function entrySearchText(entry) {
-  return [
-    entry.fileName,
-    entry.meta4Object,
-    entry.node,
-    entry.recordSet,
-    entry.connection?.organization,
-    entry.connection?.date,
-    entry.sql,
-    entry.rows.flat().join(' ')
-  ].join(' ').toLowerCase();
+  return entry.searchText || buildEntrySearchText(entry);
 }
 
 function entryDisplayTitle(entry) {
@@ -924,6 +1022,13 @@ function renderSelectedEntry() {
     elements.selectedFile.textContent = 'Nenhum item selecionado';
     elements.selectedTitle.textContent = 'Selecione uma query';
     elements.metaObject.textContent = '-';
+    if (elements.ignoreObjectLink) {
+      elements.ignoreObjectLink.classList.remove('is-visible', 'is-disabled');
+      elements.ignoreObjectLink.removeAttribute('aria-disabled');
+      elements.ignoreObjectLink.dataset.object = '';
+    }
+    elements.nodeName.textContent = '-';
+    elements.roleName.textContent = '-';
     elements.organization.textContent = '-';
     elements.date.textContent = '-';
     elements.duration.textContent = '-';
@@ -938,7 +1043,21 @@ function renderSelectedEntry() {
 
   elements.selectedFile.textContent = `${entry.fileName} | linha ${entry.lineNumber}`;
   elements.selectedTitle.textContent = entryDisplayTitle(entry);
-  elements.metaObject.textContent = entry.meta4Object || '-';
+  const objectName = entry.meta4Object || '-';
+  const normalizedObjectName = String(objectName).trim().toUpperCase();
+  const isIgnoredObject = !!normalizedObjectName && normalizedObjectName !== '-' && userIgnoredSet.has(normalizedObjectName);
+  elements.metaObject.textContent = objectName;
+  if (elements.ignoreObjectLink) {
+    const shouldShowLink = !!normalizedObjectName && normalizedObjectName !== '-';
+    elements.ignoreObjectLink.dataset.object = shouldShowLink ? objectName : '';
+    elements.ignoreObjectLink.classList.toggle('is-visible', shouldShowLink);
+    elements.ignoreObjectLink.classList.toggle('is-disabled', isIgnoredObject);
+    elements.ignoreObjectLink.setAttribute('aria-disabled', isIgnoredObject ? 'true' : 'false');
+    elements.ignoreObjectLink.textContent = isIgnoredObject ? 'ignorado' : 'ignorar';
+    elements.ignoreObjectLink.title = isIgnoredObject ? 'Este objeto ja esta na lista de ignorados' : 'Adicionar objeto atual a lista de ignorados';
+  }
+  elements.nodeName.textContent = entry.node || '-';
+  elements.roleName.textContent = entry.connection?.role || '-';
   elements.organization.textContent = entry.connection?.organization || '-';
   elements.date.textContent = formatDate(entry.connection?.date);
   elements.duration.textContent = entry.durationMs == null ? '-' : `${entry.durationMs} ms`;
@@ -946,7 +1065,8 @@ function renderSelectedEntry() {
   const sqlText = currentSqlText(entry);
   elements.sqlOutput.innerHTML = sqlText ? highlightSql(sqlText) : 'Sem SQL capturado.';
   updateFormatSqlButton();
-  elements.rawOutput.textContent = (entry.rawLines || []).join('\n');
+  const rawText = (entry.rawLines || []).join('\n');
+  elements.rawOutput.innerHTML = rawText ? highlightSql(rawText) : '';
   renderTable(entry);
 }
 
@@ -1098,11 +1218,17 @@ elements.onlyRealStmt.addEventListener('change', () => {
 
 elements.searchInput.addEventListener('input', () => {
   state.search = elements.searchInput.value;
-  const visible = filteredEntries();
-  if (!visible.some((entry) => entry.id === state.selectedId)) {
-    state.selectedId = visible[0]?.id || null;
+  if (state.searchRenderTimer) {
+    window.clearTimeout(state.searchRenderTimer);
   }
-  render();
+  state.searchRenderTimer = window.setTimeout(() => {
+    state.searchRenderTimer = null;
+    const visible = filteredEntries();
+    if (!visible.some((entry) => entry.id === state.selectedId)) {
+      state.selectedId = visible[0]?.id || null;
+    }
+    render();
+  }, 140);
 });
 
 elements.fileInput.addEventListener('change', () => {
@@ -1184,6 +1310,23 @@ if (elements.addIgnoredButton) {
   });
 }
 
+if (elements.ignoreObjectLink) {
+  elements.ignoreObjectLink.addEventListener('click', (event) => {
+    event.preventDefault();
+    const objectName = elements.ignoreObjectLink.dataset.object || selectedEntry()?.meta4Object || '';
+    if (!objectName) {
+      return;
+    }
+    const alreadyIgnored = userIgnoredSet.has(String(objectName).trim().toUpperCase());
+    if (alreadyIgnored) {
+      showIgnoreObjectFeedback('existing');
+      return;
+    }
+    addIgnoredObject(objectName, { deferSelectionMs: 1000 });
+    showIgnoreObjectFeedback('added');
+  });
+}
+
 if (elements.ignoredList) {
   elements.ignoredList.addEventListener('click', (ev) => {
     const btn = ev.target.closest('.remove-ignored');
@@ -1228,28 +1371,37 @@ if (elements.formatSqlButton) {
   });
 }
 
-elements.copyButton.addEventListener('click', async () => {
-  const entry = selectedEntry();
-  if (!entry?.sql) {
-    return;
-  }
-  await navigator.clipboard.writeText(currentSqlText(entry));
-  const original = elements.copyButton.textContent;
-  elements.copyButton.textContent = 'Copiado';
-  window.setTimeout(() => {
-    elements.copyButton.textContent = original;
-  }, 1200);
-});
+if (elements.copyButton) {
+  elements.copyButton.addEventListener('click', async () => {
+    const entry = selectedEntry();
+    if (!entry?.sql) {
+      return;
+    }
+    await navigator.clipboard.writeText(currentSqlText(entry));
+    const original = elements.copyButton.textContent;
+    elements.copyButton.textContent = 'Copiado';
+    window.setTimeout(() => {
+      elements.copyButton.textContent = original;
+    }, 1200);
+  });
+}
 
-elements.refreshButton.addEventListener('click', reloadLoadedFiles);
+if (elements.refreshButton) {
+  elements.refreshButton.addEventListener('click', reloadLoadedFiles);
+}
 
 async function loadAppVersion() {
+  const appVersionElement = document.querySelector('#appVersion');
+  if (!appVersionElement) {
+    return;
+  }
+
   try {
     const response = await fetch('version.json', { cache: 'no-store' });
     if (response.ok) {
       const data = await response.json();
       const version = data.version || '0.0.0';
-      document.querySelector('#appVersion').textContent = `v${version}`;
+      appVersionElement.textContent = `v${version}`;
       return;
     }
   } catch (e) {
@@ -1258,7 +1410,7 @@ async function loadAppVersion() {
 
   const meta = document.querySelector('meta[name="app-version"]');
   const v = (meta && meta.getAttribute('content')) || '0.0.0';
-  document.querySelector('#appVersion').textContent = `v${v}`;
+  appVersionElement.textContent = `v${v}`;
 }
 
 initializeTheme();
