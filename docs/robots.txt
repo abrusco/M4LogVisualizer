@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://abrusco.github.io/M4LogVisualizer/sitemap.xml
